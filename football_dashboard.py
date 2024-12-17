@@ -29,8 +29,6 @@ def save_live_matches_to_csv():
         st.write("No live matches found.")
 
 # Step 2: Load Data from CSV and Display Historical Data
-
-# Load the saved live match data from CSV
 def load_live_match_data():
     try:
         data = pd.read_csv("live_matches.csv")
@@ -77,9 +75,15 @@ live_matches = load_live_matches()
 if live_matches is not None:
     st.subheader("Live Matches")
     for index, match in live_matches.iterrows():
-        st.write(f"**{match['home_team']}** vs **{match['away_team']}**")
-        st.write(f"Date: {match['date']}")
-        st.write(f"Score: {match['home_score']} - {match['away_score']}")
+        # Check for the expected keys in the match data
+        if 'teams' in match and 'home' in match['teams'] and 'away' in match['teams']:
+            home_team = match['teams']['home']['name']
+            away_team = match['teams']['away']['name']
+            st.write(f"**{home_team}** vs **{away_team}**")
+            st.write(f"Date: {match['fixture']['date']}")
+            st.write(f"Score: {match['goals']['home']} - {match['goals']['away']}")
+        else:
+            st.write("Match data is incomplete.")
         st.write("---")
 else:
     st.write("No live matches available.")
