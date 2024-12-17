@@ -1,0 +1,8 @@
+# Ignore system files
+/ProgramData/
+/Windows/
+/System Volume Information/
+/$RECYCLE.BIN/
+/hiberfil.sys
+/pagefile.sys
+/swapfile.sys
