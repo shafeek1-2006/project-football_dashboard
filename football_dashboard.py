@@ -2,11 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 import matplotlib.pyplot as plt
-import plotly.express as px
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression
-from sklearn.tree import DecisionTreeRegressor
 from sklearn.metrics import mean_squared_error
 
 # -------------------------- API Configuration -------------------------- #
@@ -16,7 +13,7 @@ headers = {"x-apisports-key": API_KEY}
 
 # -------------------------- Helper Functions -------------------------- #
 # Fetch live match data
-@st.cache
+@st.cache_data
 def fetch_live_matches():
     response = requests.get(f"{BASE_URL}fixtures?live=all", headers=headers)
     if response.status_code == 200:
@@ -24,7 +21,7 @@ def fetch_live_matches():
     return []
 
 # Fetch player statistics
-@st.cache
+@st.cache_data
 def fetch_player_stats(team_id):
     response = requests.get(f"{BASE_URL}players?team={team_id}&season=2023", headers=headers)
     if response.status_code == 200:
@@ -32,29 +29,20 @@ def fetch_player_stats(team_id):
     return []
 
 # Fetch team information
+@st.cache_data
 def fetch_team_logo(team_id):
     response = requests.get(f"{BASE_URL}teams?id={team_id}", headers=headers)
     if response.status_code == 200:
-        data = response.json()
-        if data["response"]:
-            return data["response"][0]["team"]["logo"]
-        else:
-            return None
+        return response.json()["response"][0]["team"]["logo"]
     return None
 
 # Train Random Forest model
-def train_prediction_model(data, model_option):
+def train_prediction_model(data):
     features = data[['shots_on_target', 'assists', 'pass_accuracy']]
     target = data['goals_scored']
     X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
     
-    if model_option == "Random Forest":
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
-    elif model_option == "Linear Regression":
-        model = LinearRegression()
-    else:
-        model = DecisionTreeRegressor(random_state=42)
-        
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     mse = mean_squared_error(y_test, predictions)
@@ -82,34 +70,27 @@ else:
 # Player Performance Data
 st.header("Player Performance Prediction")
 team_id = st.text_input("Enter a Team ID to Fetch Player Stats (Example: 33 for Manchester United):")
-position_filter = st.selectbox("Select Position", ["All", "Forward", "Midfielder", "Defender", "Goalkeeper"])
-
 if team_id:
     player_stats = fetch_player_stats(team_id)
     if player_stats:
-        # Filter players by position
-        filtered_player_data = []
-        for player in player_stats:
-            player_position = player['statistics'][0]['games']['position']
-            if position_filter == "All" or player_position == position_filter:
-                stats = player['statistics'][0]
-                filtered_player_data.append({
-                    'Player': player['player']['name'],
-                    'Position': player_position,
-                    'Team': stats['team']['name'],
-                    'Shots on Target': stats['shots']['on'],
-                    'Assists': stats['goals']['assists'],
-                    'Pass Accuracy': stats['passes']['accuracy'],
-                    'Goals Scored': stats['goals']['total']
-                })
+        player_data = []
+        for player in player_stats[:5]:  # Limit to first 5 players for simplicity
+            stats = player['statistics'][0]
+            player_data.append({
+                'Player': player['player']['name'],
+                'Team': stats['team']['name'],
+                'Shots on Target': stats['shots']['on'],
+                'Assists': stats['goals']['assists'],
+                'Pass Accuracy': stats['passes']['accuracy'],
+                'Goals Scored': stats['goals']['total']
+            })
         
-        player_df = pd.DataFrame(filtered_player_data).fillna(0)
+        player_df = pd.DataFrame(player_data).fillna(0)
         st.dataframe(player_df)
 
         # Train the model
         st.subheader("Train Prediction Model")
-        model_option = st.selectbox("Select Prediction Model", ["Random Forest", "Linear Regression", "Decision Tree"])
-        model, mse = train_prediction_model(player_df, model_option)
+        model, mse = train_prediction_model(player_df)
         st.write(f"**Model Mean Squared Error:** {mse:.2f}")
 
         # Predict goals for all players
@@ -124,11 +105,6 @@ if team_id:
         plt.xticks(rotation=45)
         plt.legend()
         st.pyplot(fig)
-
-        # Interactive Visualization using Plotly
-        st.subheader("Assists vs Goals Scored (Interactive)")
-        fig = px.bar(player_df, x='Player', y=['Assists', 'Goals Scored'], barmode='group', title="Assists vs Goals Scored")
-        st.plotly_chart(fig)
     else:
         st.write("No player statistics available for this team.")
 
