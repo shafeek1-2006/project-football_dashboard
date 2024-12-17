@@ -1,104 +1,93 @@
-import pandas as pd
-import requests
-import random
 import streamlit as st
+import pandas as pd
+import numpy as np
+import requests
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error
 
-# Your API configuration
-api_key = "3acf305c864c1140733b63d0e970d52f"
-base_url = "https://v3.football.api-sports.io"
-headers = {"x-rapidapi-key": api_key, "x-rapidapi-host": "v3.football.api-sports.io"}
+# Sample football data (you can replace this with actual data from an API or database)
+# Simulated player and team data
+player_data = {
+    'player_name': ['Player1', 'Player2', 'Player3', 'Player4', 'Player5'],
+    'team': ['Team A', 'Team B', 'Team C', 'Team A', 'Team B'],
+    'shots_on_target': [3, 1, 2, 4, 1],
+    'assists': [1, 0, 1, 2, 0],
+    'pass_accuracy': [85, 75, 90, 80, 88],
+    'goals': [1, 0, 2, 1, 0],
+    'team_logo_url': [
+        'https://upload.wikimedia.org/wikipedia/commons/4/4d/FC_Barcelona_%28crest%29.svg',  # Team A logo
+        'https://upload.wikimedia.org/wikipedia/commons/2/2f/Arsenal_FC.svg',  # Team B logo
+        'https://upload.wikimedia.org/wikipedia/commons/0/04/Real_Madrid_CF.svg',  # Team C logo
+        'https://upload.wikimedia.org/wikipedia/commons/4/4d/FC_Barcelona_%28crest%29.svg',  # Team A logo
+        'https://upload.wikimedia.org/wikipedia/commons/2/2f/Arsenal_FC.svg',  # Team B logo
+    ]
+}
 
-# Function to fetch live match data
-def fetch_live_matches():
-    url = f"{base_url}/fixtures?live=all"
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        matches = response.json().get("response", [])
-        return matches
-    return None
+# Create DataFrame for player data
+df = pd.DataFrame(player_data)
 
-# Function to save live match data to CSV
-def save_live_matches_to_csv():
-    matches = fetch_live_matches()
-    if matches:
-        df = pd.DataFrame(matches)
-        df.to_csv('live_matches.csv', mode='a', header=False, index=False)  # Append data to the CSV
-        st.write("Live matches data saved!")
-    else:
-        st.write("No live matches found.")
+# Train a Random Forest model to predict goals based on player performance data
+X = df[['shots_on_target', 'assists', 'pass_accuracy']]  # Features
+y = df['goals']  # Target variable (goals)
 
-# Step 2: Load Data from CSV and Display Historical Data
-def load_live_match_data():
-    try:
-        data = pd.read_csv("live_matches.csv")
-        return data
-    except FileNotFoundError:
-        st.write("No historical data found.")
-        return pd.DataFrame()
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Display Historical Data
-st.subheader("Historical Match Data")
-historical_data = load_live_match_data()
+# Initialize the Random Forest Regressor
+model = RandomForestRegressor(n_estimators=100, random_state=42)
 
-# Show the dataframe of historical data
-if not historical_data.empty:
-    st.dataframe(historical_data)
+# Train the model
+model.fit(X_train, y_train)
+
+# Evaluate the model
+y_pred = model.predict(X_test)
+mse = mean_squared_error(y_test, y_pred)
+st.write(f"Model Mean Squared Error: {mse:.2f}")
+
+# Title and description for the dashboard
+st.title('Football Prediction Dashboard')
+st.markdown("## Live Match Data")
+
+# Placeholder for live matches (simulated for now)
+live_matches = pd.DataFrame({
+    'match_id': [1, 2, 3],
+    'home_team': ['Team A', 'Team B', 'Team C'],
+    'away_team': ['Team D', 'Team E', 'Team F'],
+    'status': ['Live', 'Live', 'Live'],
+})
+
+# Display live matches
+if not live_matches.empty:
+    for _, match in live_matches.iterrows():
+        st.write(f"**{match['home_team']}** vs **{match['away_team']}** - Status: {match['status']}")
 else:
-    st.write("No historical data available.")
+    st.write("No live matches data available.")
 
-# Load the saved live match data
-def load_live_matches():
-    try:
-        live_matches = pd.read_csv("live_matches.csv")
-        return live_matches
-    except FileNotFoundError:
-        st.write("No live matches data found.")
-        return None
+# Player Performance Prediction Section
+st.markdown("## Player Performance Prediction")
 
-# Improved player performance prediction logic
-def predict_player_performance(player_name):
-    # Simulate some realistic stats for now (you can replace this with actual logic)
-    shots_on_target = random.randint(0, 5)
-    assists = random.randint(0, 2)
-    pass_accuracy = random.randint(40, 100)
+# Input for player performance (shots, assists, pass accuracy)
+shots_on_target = st.number_input("Shots on Target", min_value=0, max_value=10, value=0)
+assists = st.number_input("Assists", min_value=0, max_value=5, value=0)
+pass_accuracy = st.number_input("Pass Accuracy (%)", min_value=0, max_value=100, value=50)
 
-    # Simulate goal prediction based on shots and assists
-    predicted_goal = "No Goal Predicted" if shots_on_target == 0 else f"Goal Predicted: {shots_on_target} goals"
-    
-    return {
-        "shots_on_target": shots_on_target,
-        "assists": assists,
-        "pass_accuracy": pass_accuracy,
-        "predicted_goal": predicted_goal
-    }
+# Prediction based on input data
+input_features = np.array([[shots_on_target, assists, pass_accuracy]])
+predicted_goals = model.predict(input_features)
 
-# Dashboard
-st.title("Football Prediction Dashboard")
+# Display predicted results
+st.write(f"Predicted Goals: {predicted_goals[0]:.2f}")
 
-# Option to fetch live matches
-if st.button("Fetch Live Matches"):
-    save_live_matches_to_csv()
+# Display player details, team logos, and performance
+st.markdown("### Player Details and Performance")
 
-# Load live matches from CSV
-live_matches = load_live_matches()
+for i, row in df.iterrows():
+    # Display player name, team name, and team logo
+    st.write(f"**{row['player_name']}** - Team: {row['team']}")
+    st.image(row['team_logo_url'], width=50)  # Displaying team logo (URL-based image)
+    st.write(f"**Shots on Target**: {row['shots_on_target']}, **Assists**: {row['assists']}, **Pass Accuracy**: {row['pass_accuracy']}%")
+    st.write(f"**Goals Scored**: {row['goals']}")
+    st.write("----")
 
-if live_matches is not None:
-    st.subheader("Live Matches")
-    for index, match in live_matches.iterrows():
-        st.write(f"**{match['teams']['home']['name']}** vs **{match['teams']['away']['name']}**")
-        st.write(f"Date: {match['fixture']['date']}")
-        st.write(f"Score: {match['goals']['home']} - {match['goals']['away']}")
-        st.write("---")
-else:
-    st.write("No live matches available.")
-
-# Player performance prediction
-st.subheader("Player Performance Prediction")
-player_name = st.text_input("Enter Player Name")
-
-if player_name:
-    player_stats = predict_player_performance(player_name)
-    st.write(f"Shots on Target: {player_stats['shots_on_target']}")
-    st.write(f"Assists: {player_stats['assists']}")
-    st.write(f"Pass Accuracy: {player_stats['pass_accuracy']}%")
-    st.write(f"Prediction: {player_stats['predicted_goal']}")
+# You can also add additional analysis, graphs, and charts here
