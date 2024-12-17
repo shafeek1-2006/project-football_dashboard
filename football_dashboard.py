@@ -1,101 +1,88 @@
+import streamlit as st
 import pandas as pd
 import requests
-import time
-import streamlit as st
-import random
+from sklearn.ensemble import RandomForestClassifier
 
-# Your API configuration
-api_key = "3acf305c864c1140733b63d0e970d52f"
-base_url = "https://v3.football.api-sports.io"
-headers = {"x-rapidapi-key": api_key, "x-rapidapi-host": "v3.football.api-sports.io"}
+# Example API (replace with actual API URL)
+API_KEY = 'your_api_key'
+BASE_URL = 'https://api.football-data.org/v2'
 
-# Function to fetch live match data
+# Function to fetch live matches data from the API
 def fetch_live_matches():
-    url = f"{base_url}/fixtures?live=all"
+    url = f"{BASE_URL}/matches"
+    headers = {'X-Auth-Token': API_KEY}
     response = requests.get(url, headers=headers)
+    
     if response.status_code == 200:
-        matches = response.json().get("response", [])
+        matches = response.json().get("matches", [])
         return matches
     return None
 
-# Function to save live match data to CSV
-def save_live_matches_to_csv():
+# Function to display live match data
+def display_live_matches():
     matches = fetch_live_matches()
+    
     if matches:
-        df = pd.DataFrame(matches)
-        df.to_csv('live_matches.csv', mode='a', header=False, index=False)  # Append data to the CSV
-        st.write("Live matches data saved!")
-    else:
-        st.write("No live matches found.")
-
-# Step 2: Load Data from CSV and Display Historical Data
-def load_live_match_data():
-    try:
-        data = pd.read_csv("live_matches.csv")
-        return data
-    except FileNotFoundError:
-        st.write("No historical data found.")
-        return pd.DataFrame()
-
-# Display Historical Data
-st.subheader("Historical Match Data")
-historical_data = load_live_match_data()
-
-# Show the dataframe of historical data
-if not historical_data.empty:
-    st.dataframe(historical_data)
-else:
-    st.write("No historical data available.")
-
-# Load the saved live match data
-def load_live_matches():
-    try:
-        live_matches = pd.read_csv("live_matches.csv")
-        return live_matches
-    except FileNotFoundError:
-        st.write("No live matches data found.")
-        return None
-
-# Prediction logic
-def predict_match(home_team, away_team):
-    home_score = random.randint(0, 5)
-    away_score = random.randint(0, 5)
-    return f"Predicted Score: {home_team} {home_score} - {away_team} {away_score}"
-
-# Dashboard
-st.title("Football Prediction Dashboard")
-
-# Option to fetch live matches
-if st.button("Fetch Live Matches"):
-    save_live_matches_to_csv()
-
-# Load live matches from CSV
-live_matches = load_live_matches()
-
-if live_matches is not None:
-    st.subheader("Live Matches")
-    for index, match in live_matches.iterrows():
-        # Check for the expected keys in the match data
-        if 'teams' in match and 'home' in match['teams'] and 'away' in match['teams']:
-            home_team = match['teams']['home']['name']
-            away_team = match['teams']['away']['name']
+        for match in matches:
+            home_team = match['homeTeam']['name']
+            away_team = match['awayTeam']['name']
+            score = match['score']['fullTime']
             st.write(f"**{home_team}** vs **{away_team}**")
-            st.write(f"Date: {match['fixture']['date']}")
-            st.write(f"Score: {match['goals']['home']} - {match['goals']['away']}")
-        else:
-            st.write("Match data is incomplete.")
-        st.write("---")
-else:
-    st.write("No live matches available.")
+            st.write(f"Score: {score['homeTeam']} - {score['awayTeam']}")
+            
+            # Display player stats if available
+            # Assuming the API returns player stats (check your API documentation)
+            players = match.get('players', [])
+            for player in players:
+                st.write(f"Player: {player['name']}, Goals: {player['goals']}, Assists: {player['assists']}")
+    else:
+        st.write("No live matches data available.")
 
-# Predict match outcome
-st.subheader("Predict Match Outcome")
-if live_matches is not None:
-    home_team = st.selectbox("Select Home Team", live_matches["home_team"].unique())
-    away_team = st.selectbox("Select Away Team", live_matches["away_team"].unique())
+# Sample player data (replace with actual dataset)
+player_data = pd.DataFrame({
+    'shots': [5, 3, 4, 2, 6],
+    'assists': [1, 2, 1, 0, 1],
+    'pass_accuracy': [85, 90, 88, 80, 92],
+    'goals': [1, 0, 2, 0, 1]  # This is the target variable
+})
 
-    if st.button("Predict Outcome"):
-        prediction = predict_match(home_team, away_team)
-        st.write(prediction)
-else:
-    st.write("No live matches available to predict.")
+# Features (X) and target (y)
+X = player_data[['shots', 'assists', 'pass_accuracy']]
+y = player_data['goals']
+
+# Train a RandomForest model
+model = RandomForestClassifier(n_estimators=100)
+model.fit(X, y)
+
+# Function to predict if a player will score based on stats
+def predict_goal(shots, assists, pass_accuracy):
+    prediction = model.predict([[shots, assists, pass_accuracy]])
+    return "Goal Predicted" if prediction[0] == 1 else "No Goal Predicted"
+
+# Function for player performance prediction
+def player_performance_prediction():
+    st.header("Player Performance Prediction")
+    
+    # Inputs for player stats
+    shots = st.number_input("Shots on Target", min_value=0, max_value=10)
+    assists = st.number_input("Assists", min_value=0, max_value=5)
+    pass_accuracy = st.number_input("Pass Accuracy (%)", min_value=50, max_value=100)
+    
+    # Predict and display result
+    if st.button("Predict Player Goal"):
+        prediction = predict_goal(shots, assists, pass_accuracy)
+        st.write(f"Prediction: {prediction}")
+
+# Full dashboard integration
+def main():
+    st.title("Football Prediction Dashboard")
+    
+    # Display live match data
+    st.header("Live Match Data")
+    display_live_matches()  # Display live match data
+    
+    # Predict individual player performance
+    player_performance_prediction()  # Predict player outcomes
+
+if __name__ == "__main__":
+    main()
