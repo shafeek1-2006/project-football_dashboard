@@ -26,7 +26,7 @@ def fetch_player_stats(team_id):
         return response.json().get("response", [])
     return []
 
-# Fetch team information
+# Fetch team logo
 def fetch_team_logo(team_id):
     response = requests.get(f"{BASE_URL}teams?id={team_id}", headers=headers)
     if response.status_code == 200:
@@ -35,24 +35,22 @@ def fetch_team_logo(team_id):
 
 # Train Random Forest model
 def train_prediction_model(data):
-    features = data[['shots_on_target', 'assists', 'pass_accuracy']]
-    target = data['goals_scored']
+    features = data[['Shots on Target', 'Assists', 'Pass Accuracy']]
+    target = data['Goals Scored']
     X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
     
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
     predictions = model.predict(X_test)
     mse = mean_squared_error(y_test, predictions)
-    
     return model, mse
 
 # -------------------------- Streamlit Dashboard -------------------------- #
-st.title("Football Prediction Dashboard")
+st.title("Football Player Performance Prediction Dashboard")
 
-# Live Match Data
+# -------------------------- Live Match Data -------------------------- #
 st.header("Live Match Data")
 live_matches = fetch_live_matches()
-
 if live_matches:
     for match in live_matches:
         home_team = match['teams']['home']['name']
@@ -64,37 +62,38 @@ if live_matches:
 else:
     st.write("No live matches available.")
 
-# Player Performance Data
+# -------------------------- Player Performance Data -------------------------- #
 st.header("Player Performance Prediction")
 team_id = st.text_input("Enter a Team ID to Fetch Player Stats (Example: 33 for Manchester United):")
 if team_id:
     player_stats = fetch_player_stats(team_id)
     if player_stats:
+        # Process Player Statistics
         player_data = []
-        for player in player_stats[:5]:  # Limit to first 5 players for simplicity
+        for player in player_stats[:5]:  # Limit to first 5 players
             stats = player['statistics'][0]
             player_data.append({
                 'Player': player['player']['name'],
                 'Team': stats['team']['name'],
-                'Shots on Target': stats['shots']['on'],
-                'Assists': stats['goals']['assists'],
-                'Pass Accuracy': stats['passes']['accuracy'],
-                'Goals Scored': stats['goals']['total']
+                'Shots on Target': stats['shots']['on'] if stats['shots'] else 0,
+                'Assists': stats['goals']['assists'] if stats['goals'] else 0,
+                'Pass Accuracy': stats['passes']['accuracy'] if stats['passes'] else 0,
+                'Goals Scored': stats['goals']['total'] if stats['goals'] else 0
             })
         
-        player_df = pd.DataFrame(player_data).fillna(0)
+        player_df = pd.DataFrame(player_data)
         st.dataframe(player_df)
 
-        # Train the model
+        # -------------------- Train Model -------------------- #
         st.subheader("Train Prediction Model")
         model, mse = train_prediction_model(player_df)
         st.write(f"**Model Mean Squared Error:** {mse:.2f}")
 
-        # Predict goals for all players
+        # Predict Goals
         player_df['Predicted Goals'] = model.predict(player_df[['Shots on Target', 'Assists', 'Pass Accuracy']])
         st.dataframe(player_df[['Player', 'Team', 'Predicted Goals']])
 
-        # Graphs: Shots on Target vs Goals
+        # -------------------- Graphs -------------------- #
         st.subheader("Shots on Target vs Goals Scored")
         fig, ax = plt.subplots()
         ax.bar(player_df['Player'], player_df['Shots on Target'], color='blue', label='Shots on Target')
