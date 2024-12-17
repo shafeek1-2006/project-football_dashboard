@@ -24,14 +24,9 @@ def save_live_matches_to_csv():
     if matches:
         df = pd.DataFrame(matches)
         df.to_csv('live_matches.csv', mode='a', header=False, index=False)  # Append data to the CSV
-        print("Live matches data saved!")
+        st.write("Live matches data saved!")
     else:
-        print("No live matches found.")
-
-# Automate the process (run it every 10 minutes for example)
-while True:
-    save_live_matches_to_csv()
-    time.sleep(600)  # Wait 10 minutes before fetching again
+        st.write("No live matches found.")
 
 # Step 2: Load Data from CSV and Display Historical Data
 
@@ -54,7 +49,6 @@ if not historical_data.empty:
 else:
     st.write("No historical data available.")
 
-
 # Load the saved live match data
 def load_live_matches():
     try:
@@ -73,6 +67,10 @@ def predict_match(home_team, away_team):
 # Dashboard
 st.title("Football Prediction Dashboard")
 
+# Option to fetch live matches
+if st.button("Fetch Live Matches"):
+    save_live_matches_to_csv()
+
 # Load live matches from CSV
 live_matches = load_live_matches()
 
@@ -88,11 +86,12 @@ else:
 
 # Predict match outcome
 st.subheader("Predict Match Outcome")
-home_team = st.selectbox("Select Home Team", live_matches["home_team"].unique())
-away_team = st.selectbox("Select Away Team", live_matches["away_team"].unique())
+if live_matches is not None:
+    home_team = st.selectbox("Select Home Team", live_matches["home_team"].unique())
+    away_team = st.selectbox("Select Away Team", live_matches["away_team"].unique())
 
-if st.button("Predict Outcome"):
-    prediction = predict_match(home_team, away_team)
-    st.write(prediction)
-
-
+    if st.button("Predict Outcome"):
+        prediction = predict_match(home_team, away_team)
+        st.write(prediction)
+else:
+    st.write("No live matches available to predict.")
