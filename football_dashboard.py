@@ -4,7 +4,7 @@ import requests
 from sklearn.ensemble import RandomForestClassifier
 
 # Example API (replace with actual API URL)
-API_KEY = 'your_api_key'
+API_KEY = '3acf305c864c1140733b63d0e970d52f'
 BASE_URL = 'https://api.football-data.org/v2'
 
 # Function to fetch live matches data from the API
