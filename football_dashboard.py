@@ -1,93 +1,109 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import requests
-from sklearn.ensemble import RandomForestRegressor
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error
 
-# Sample football data (you can replace this with actual data from an API or database)
-# Simulated player and team data
-player_data = {
-    'player_name': ['Player1', 'Player2', 'Player3', 'Player4', 'Player5'],
-    'team': ['Team A', 'Team B', 'Team C', 'Team A', 'Team B'],
-    'shots_on_target': [3, 1, 2, 4, 1],
-    'assists': [1, 0, 1, 2, 0],
-    'pass_accuracy': [85, 75, 90, 80, 88],
-    'goals': [1, 0, 2, 1, 0],
-    'team_logo_url': [
-        'https://upload.wikimedia.org/wikipedia/commons/4/4d/FC_Barcelona_%28crest%29.svg',  # Team A logo
-        'https://upload.wikimedia.org/wikipedia/commons/2/2f/Arsenal_FC.svg',  # Team B logo
-        'https://upload.wikimedia.org/wikipedia/commons/0/04/Real_Madrid_CF.svg',  # Team C logo
-        'https://upload.wikimedia.org/wikipedia/commons/4/4d/FC_Barcelona_%28crest%29.svg',  # Team A logo
-        'https://upload.wikimedia.org/wikipedia/commons/2/2f/Arsenal_FC.svg',  # Team B logo
-    ]
-}
+# -------------------------- API Configuration -------------------------- #
+API_KEY = "3acf305c864c1140733b63d0e970d52f"
+BASE_URL = "https://v3.football.api-sports.io/"
+headers = {"x-apisports-key": API_KEY}
 
-# Create DataFrame for player data
-df = pd.DataFrame(player_data)
+# -------------------------- Helper Functions -------------------------- #
+# Fetch live match data
+def fetch_live_matches():
+    response = requests.get(f"{BASE_URL}fixtures?live=all", headers=headers)
+    if response.status_code == 200:
+        return response.json().get("response", [])
+    return []
 
-# Train a Random Forest model to predict goals based on player performance data
-X = df[['shots_on_target', 'assists', 'pass_accuracy']]  # Features
-y = df['goals']  # Target variable (goals)
+# Fetch player statistics
+def fetch_player_stats(team_id):
+    response = requests.get(f"{BASE_URL}players?team={team_id}&season=2023", headers=headers)
+    if response.status_code == 200:
+        return response.json().get("response", [])
+    return []
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Fetch team information
+def fetch_team_logo(team_id):
+    response = requests.get(f"{BASE_URL}teams?id={team_id}", headers=headers)
+    if response.status_code == 200:
+        return response.json()["response"][0]["team"]["logo"]
+    return None
 
-# Initialize the Random Forest Regressor
-model = RandomForestRegressor(n_estimators=100, random_state=42)
+# Train Random Forest model
+def train_prediction_model(data):
+    features = data[['shots_on_target', 'assists', 'pass_accuracy']]
+    target = data['goals_scored']
+    X_train, X_test, y_train, y_test = train_test_split(features, target, test_size=0.2, random_state=42)
+    
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    predictions = model.predict(X_test)
+    mse = mean_squared_error(y_test, predictions)
+    
+    return model, mse
 
-# Train the model
-model.fit(X_train, y_train)
+# -------------------------- Streamlit Dashboard -------------------------- #
+st.title("Football Prediction Dashboard")
 
-# Evaluate the model
-y_pred = model.predict(X_test)
-mse = mean_squared_error(y_test, y_pred)
-st.write(f"Model Mean Squared Error: {mse:.2f}")
+# Live Match Data
+st.header("Live Match Data")
+live_matches = fetch_live_matches()
 
-# Title and description for the dashboard
-st.title('Football Prediction Dashboard')
-st.markdown("## Live Match Data")
-
-# Placeholder for live matches (simulated for now)
-live_matches = pd.DataFrame({
-    'match_id': [1, 2, 3],
-    'home_team': ['Team A', 'Team B', 'Team C'],
-    'away_team': ['Team D', 'Team E', 'Team F'],
-    'status': ['Live', 'Live', 'Live'],
-})
-
-# Display live matches
-if not live_matches.empty:
-    for _, match in live_matches.iterrows():
-        st.write(f"**{match['home_team']}** vs **{match['away_team']}** - Status: {match['status']}")
+if live_matches:
+    for match in live_matches:
+        home_team = match['teams']['home']['name']
+        away_team = match['teams']['away']['name']
+        home_logo = fetch_team_logo(match['teams']['home']['id'])
+        away_logo = fetch_team_logo(match['teams']['away']['id'])
+        st.image([home_logo, away_logo], width=80, caption=[home_team, away_team])
+        st.write(f"**{home_team}** vs **{away_team}** - Status: Live")
 else:
-    st.write("No live matches data available.")
+    st.write("No live matches available.")
 
-# Player Performance Prediction Section
-st.markdown("## Player Performance Prediction")
+# Player Performance Data
+st.header("Player Performance Prediction")
+team_id = st.text_input("Enter a Team ID to Fetch Player Stats (Example: 33 for Manchester United):")
+if team_id:
+    player_stats = fetch_player_stats(team_id)
+    if player_stats:
+        player_data = []
+        for player in player_stats[:5]:  # Limit to first 5 players for simplicity
+            stats = player['statistics'][0]
+            player_data.append({
+                'Player': player['player']['name'],
+                'Team': stats['team']['name'],
+                'Shots on Target': stats['shots']['on'],
+                'Assists': stats['goals']['assists'],
+                'Pass Accuracy': stats['passes']['accuracy'],
+                'Goals Scored': stats['goals']['total']
+            })
+        
+        player_df = pd.DataFrame(player_data).fillna(0)
+        st.dataframe(player_df)
 
-# Input for player performance (shots, assists, pass accuracy)
-shots_on_target = st.number_input("Shots on Target", min_value=0, max_value=10, value=0)
-assists = st.number_input("Assists", min_value=0, max_value=5, value=0)
-pass_accuracy = st.number_input("Pass Accuracy (%)", min_value=0, max_value=100, value=50)
+        # Train the model
+        st.subheader("Train Prediction Model")
+        model, mse = train_prediction_model(player_df)
+        st.write(f"**Model Mean Squared Error:** {mse:.2f}")
 
-# Prediction based on input data
-input_features = np.array([[shots_on_target, assists, pass_accuracy]])
-predicted_goals = model.predict(input_features)
+        # Predict goals for all players
+        player_df['Predicted Goals'] = model.predict(player_df[['Shots on Target', 'Assists', 'Pass Accuracy']])
+        st.dataframe(player_df[['Player', 'Team', 'Predicted Goals']])
 
-# Display predicted results
-st.write(f"Predicted Goals: {predicted_goals[0]:.2f}")
+        # Graphs: Shots on Target vs Goals
+        st.subheader("Shots on Target vs Goals Scored")
+        fig, ax = plt.subplots()
+        ax.bar(player_df['Player'], player_df['Shots on Target'], color='blue', label='Shots on Target')
+        ax.bar(player_df['Player'], player_df['Goals Scored'], color='green', label='Goals Scored')
+        plt.xticks(rotation=45)
+        plt.legend()
+        st.pyplot(fig)
+    else:
+        st.write("No player statistics available for this team.")
 
-# Display player details, team logos, and performance
-st.markdown("### Player Details and Performance")
-
-for i, row in df.iterrows():
-    # Display player name, team name, and team logo
-    st.write(f"**{row['player_name']}** - Team: {row['team']}")
-    st.image(row['team_logo_url'], width=50)  # Displaying team logo (URL-based image)
-    st.write(f"**Shots on Target**: {row['shots_on_target']}, **Assists**: {row['assists']}, **Pass Accuracy**: {row['pass_accuracy']}%")
-    st.write(f"**Goals Scored**: {row['goals']}")
-    st.write("----")
-
-# You can also add additional analysis, graphs, and charts here
+# Footer
+st.write("Data provided by API-FOOTBALL.")
